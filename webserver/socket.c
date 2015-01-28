@@ -36,6 +36,8 @@ int creer_serveur(int port){
 		return -1;
 	}
 
+	initialiser_signaux();
+
 
 	/* Demarre l'attente de connection */
 	if (listen(socket_serveur, 10) == -1)
@@ -47,4 +49,14 @@ int creer_serveur(int port){
 	return socket_serveur;
 
 
+}
+
+
+/* Gere les signaux */
+void initialiser_signaux(void) 
+{
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+	{
+		perror("signal");
+	}
 }

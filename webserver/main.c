@@ -22,7 +22,10 @@ int main(void)
 		const char *message_bienvenue = "Bonjour, bienvenue ! \n";
 
 		/* Envoie le message de bienvenue */
-		write(socket_client, message_bienvenue, strlen(message_bienvenue));
+		while(1)  
+		{	
+			write(socket_client, message_bienvenue, strlen(message_bienvenue));
+		}	
 
 		char buf[512];
 

@@ -1,5 +1,6 @@
 
 #include "socket.h"
+#include "signaux.h"
 
 
 
@@ -7,14 +8,15 @@ int main(void)
 {
 	
 	/* Creer le serveur */
-	int fd_serveur = creer_serveur(8000);
+	int fd_serveur = creer_serveur(8080);
 
-
+	initialiser_signaux();
 
 	while(1) {
 		int socket_client;
 		/* Accepete la connection du client */
 		socket_client = accept(fd_serveur, NULL, NULL);
+		printf("Connection d'un client \n");
 		if (socket_client == -1) {
 			perror("Accept");
 			return -1;
@@ -38,9 +40,13 @@ int main(void)
 
 			/* Ecoute ce qu'il se passe et renvoie a tout les clients */
 			while (end != 0) {
+				printf("Message reçu : %s \n", buf);
 				write(socket_client, buf, end);
 				end = read(socket_client, buf, 512);
 			}
+
+			printf("Deconnection d'un client \n");
+			exit(0);
 
 		}
 

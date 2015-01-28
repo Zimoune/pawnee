@@ -7,7 +7,6 @@
 #include <string.h>
 #include <signal.h>
 
-
 #ifndef __SOCKET_H__
 #define __SOCKET_H__
 
@@ -18,5 +17,5 @@ La fonction retourne -1 en cas d ’ erreur ou le descripteur de la
 socket créée . */
 
 int creer_serveur(int port);
-void initialiser_signaux(void);
+
 #endif

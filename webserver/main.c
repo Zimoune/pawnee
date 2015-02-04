@@ -2,27 +2,48 @@
 #include "socket.h"
 #include "signaux.h"
 
-
+/*
+	Fonction renvoyant un message d'erreur si la requete est invalide 
+*/
 void errorMessage(int socket_client) {
 	char * message = "HTTP /1.1 400 Bad Request \r\nConnection : close \r\nContent-Length: 17 \r\n \r\n400 Bad Request \r\n";
 	write(socket_client, message, strlen(message));
 }
 
+/*
+	Fonction renvoyant l'erreur 404
+*/
+void error404(int socket_client) {
+	char * message = "HTTP /1.1 404 Not Found \r\nConnection : close \r\nContent-Length: 17 \r\n \r\n404 Not Found \r\n";
+	write(socket_client, message, strlen(message));
+}
+
+/*
+	Fonction repondant au client
+*/
 void answer(FILE * f) {
-	printf("Answer ! \n");
 	char * contenue = "Bienvenue sur notre site ! \r\n";
 	int length = strlen(contenue);
 	fprintf(f, "HTTP /1.1 200 OK \r\nConnection : close \r\nContent-Length: %d \r\n \r\n%s \r\n", length, contenue);
 }
 
+
+/*
+	Fonction testant la validite des requetes, et stock ses parametres
+*/
 int parseRequest(char buf[], char get[], char slash[], int M, int m) {
 
 	sscanf(buf, "%s %s HTTP/%d.%d", get, slash, &M, &m);
 
 	if (strcmp(get, "GET") == 0 ) {
 		if (M == 1 && (m == 1 || m == 0)) {
-			printf("OK \n");
-			return 0;
+			if (strcmp(slash, "/") == 0) {
+				printf("OK \n");
+				return 0;
+			} else {
+				return -2;
+			}
+			
 		} else {
 			return -1;
 		}
@@ -89,8 +110,13 @@ int main(void)
 			int M = 0;
 			int m = 0;
 
-			if (parseRequest(buf, get, slash, M, m) == -1) {
+			int error = parseRequest(buf, get, slash, M, m);
+
+			if (error == -1) {
 				errorMessage(socket_client);
+				return -1;
+			} else if (error == -2) {
+				error404(socket_client);
 				return -1;
 			}
 

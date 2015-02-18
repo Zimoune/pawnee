@@ -1,3 +1,6 @@
+#include <sys/stat.h>
+#include <fcntl.h>
+
 enum http_method {
 	HTTP_GET,
 	HTTP_UNSUPPORTED,
@@ -11,3 +14,6 @@ typedef struct
 	int minor_version;
 	char * url;
 } http_request;
+
+
+

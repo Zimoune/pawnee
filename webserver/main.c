@@ -24,7 +24,7 @@ void send_status(FILE * client , int code , const char * reason_phrase) {
 void send_response(FILE * client, int code, const char * reason_phrase, const char * message_body) {
 	send_status(client, code, reason_phrase);
 	int length = strlen(message_body);
-	fprintf(client, "Connection: close \r\nContent-Length: %d \r\n\r\n%s", length, message_body);
+	fprintf(client, "Connection: close \r\nContent-Length: %d \r\nContent-type: text/plain\r\n\r\n%s", length, message_body);
 }
 
 
@@ -53,10 +53,10 @@ int get_file_size(int fd) {
 
 
 // Renvoie au client le contenue avec l'entete 
-void send_content(FILE * client, int socket_client, int code, const char * reason_phrase, int fd) {
+void send_content(FILE * client, int socket_client, int code, const char * reason_phrase, int fd, char * contentType) {
 	send_status(client, code, reason_phrase);
 	int length = get_file_size(fd);
-	fprintf(client, "Connection: close \r\nContent-Length: %d \r\n\r\n", length);
+	fprintf(client, "Connection: close \r\nContent-Length: %d \r\nContent-type: %s\r\n\r\n", length, contentType);
 	fflush(client);
 	copy(fd, socket_client);
 }
@@ -161,6 +161,43 @@ int getError(http_request request) {
 }
 
 
+// recupere l'extension du fichier demande
+char * getExtension(char * url) {
+
+	char * tmp = strrchr(url, '.');
+
+	char * res = malloc(strlen(tmp));
+
+	unsigned int i = 0;
+	while (i+1 < strlen(tmp)) 
+	{
+		res[i] = tmp[i+1];
+		i++;
+	}
+
+	return res;
+
+}
+
+// renvoie le content type de l'extension
+char * getContentType(char * extension) {
+	char * content = malloc(30);
+	if ( strcmp(extension, "html") == 0||strcmp(extension, "css") == 0) 
+	{
+		strcat(content, "text/");
+		strcat(content, extension);
+
+	} else if (strcmp(extension, "jpg") == 0||strcmp(extension, "jpeg") == 0||strcmp(extension, "png") == 0||strcmp(extension, "gif") == 0) {
+		strcat(content, "image/");
+		strcat(content, extension);
+	} else { 
+		content = "text/plain";
+	}
+
+	return content;
+}
+
+
 int main (int argc, char *argv[])
 {
 	char * document_root = "content";
@@ -235,7 +272,10 @@ int main (int argc, char *argv[])
 					// Si la requete est bonne on renvoie le contenu
 					char * url = rewrite_url(request.url);
 					int file = check_and_open(url, document_root);
-					send_content(f, socket_client, 200, "OK", file);
+					char * contentType = getContentType(getExtension(url));
+
+
+					send_content(f, socket_client, 200, "OK", file, contentType);
 				}
 
 			} 

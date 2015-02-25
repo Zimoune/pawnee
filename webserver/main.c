@@ -2,6 +2,7 @@
 #include "socket.h"
 #include "signaux.h"
 #include "pawnee.h"
+#include "stats.h"
 
 
 // Essaye de faire un fgets, quitte le processus sinon
@@ -126,7 +127,10 @@ int parse_http_request (const char * request_line , http_request * request) {
 	
 	printf("Recu : %s \n", request_line);
 
-	sscanf(request_line, "%s %s HTTP/%d.%d", methode, url, &(*request).major_version, &(*request).minor_version);
+	if (sscanf(request_line, "%s %s HTTP/%d.%d", methode, url, &(*request).major_version, &(*request).minor_version) == EOF) 
+	{
+		return -1;
+	}
 
 
 	request->url = url;
@@ -198,37 +202,28 @@ char * getContentType(char * extension) {
 }
 
 
-int main (int argc, char *argv[])
+// Renvoie la page stat au client
+void send_stats ( FILE * client ) {
+	send_status(client, 200, "OK");
+	web_stats * stats = get_stats();
+
+	char stat[200];
+
+	sprintf(stat, "Nb Connection : %d \nNb Request : %d \nNb 200 : %d \nNb 400 : %d \nNb 403 : %d \nNb 404 : %d \n", 
+		stats->served_connections, stats->served_requests, stats->ok_200, stats->ko_400, stats->ko_403, stats->ko_404);
+
+
+	int length = strlen(stat);
+	fprintf(client, "Connection: close \r\nContent-Length: %d \r\nContent-type: text/plain\r\n\r\n%s", length, stat);
+}
+
+// Gere le comportement du client
+int child(int socket_client, char * document_root) 
 {
-	char * document_root = "content";
-
-	if (argc == 2) {
-		document_root = argv[1];
-	}
-
-	int fd;
-	/* Creer le serveur */
-	int fd_serveur = creer_serveur(8080);
-
-	initialiser_signaux();
-
-	while(1) {
-		int socket_client;
-		/* Accepete la connection du client */
-		socket_client = accept(fd_serveur, NULL, NULL);
-		if (socket_client == -1) {
-			perror("Accept");
-			return -1;
-		}
-
-		/* Creer le processus de client */
-		int fils = fork();
-
-		/* Gere le comportement du client */
-		if (fils == 0)
-		{
-
+			int fd;
 			char buf[512];
+			int erreur = 0;
+			web_stats * stats = get_stats();
 
 			const char * mode = "w+";
 			FILE *f = fdopen(socket_client, mode);
@@ -243,11 +238,13 @@ int main (int argc, char *argv[])
 			// Recupere la requete du client et la test
 			fgets_or_exit(buf, 512, f);
 			http_request request;
-			parse_http_request(buf, &request);
+			if (parse_http_request(buf, &request) == -1) erreur = 400;
+
+			(*stats).served_requests++;
 
 
 			// recupere les eventuelles erreures de requete
-			int erreur = getError(request);
+			if (erreur == 0 ) erreur = getError(request);
 
 			
 
@@ -260,29 +257,79 @@ int main (int argc, char *argv[])
 				send_response(f, 505 , "HTTP Version Not Supported" , "HTTP Version Not Supported \r\n");
 			else if (erreur == 405)
 				send_response(f , 405 , "Method Not Allowed" , "Method Not Allowed \r\n");
-			else if (erreur == 200) {
+			else if (erreur == 400) {
+				(*stats).ko_400++;
+				send_response(f , 400 , "Bad Request" , "Bad Request \r\n");
+			} else {
 				
 				char * url = "";
-				url = rewrite_url(request.url);				
-				if ((fd = check_and_open(url, document_root)) == -1) {
-					send_response(f, 404, "Not found", "Not Found \r\n");
-				} else if (fd == -2) {
-					send_response(f, 403, "Forbidden", "Forbidden \r\n");
-				}else {
-					// Si la requete est bonne on renvoie le contenu
-					char * url = rewrite_url(request.url);
-					int file = check_and_open(url, document_root);
-					char * contentType = getContentType(getExtension(url));
+				url = rewrite_url(request.url);	
+
+				printf("url : %s \n", url);
+
+				if (strcmp(url, "/stats") == 0) 
+				{
+					send_stats(f);
+				} else {
 
 
-					send_content(f, socket_client, 200, "OK", file, contentType);
+					if ((fd = check_and_open(url, document_root)) == -1) {
+						(*stats).ko_404++;
+						send_response(f, 404, "Not found", "Not Found \r\n");
+					} else if (fd == -2) {
+						(*stats).ko_403++;
+						send_response(f, 403, "Forbidden", "Forbidden \r\n");
+					}else {
+						// Si la requete est bonne on renvoie le contenu
+						char * url = rewrite_url(request.url);
+						int file = check_and_open(url, document_root);
+						char * contentType = getContentType(getExtension(url));
+						send_content(f, socket_client, 200, "OK", file, contentType);
+						(*stats).ok_200++;
+					}
 				}
 
 			} 
 
 
 			exit(0);
+}
 
+int main (int argc, char *argv[])
+{
+	char * document_root = "content";
+
+
+	init_stats();
+	web_stats * stats = get_stats();
+
+	if (argc == 2) {
+		document_root = argv[1];
+	}
+
+	/* Creer le serveur */
+	int fd_serveur = creer_serveur(8080);
+
+	initialiser_signaux();
+
+	while(1) {
+		int socket_client;
+		/* Accepete la connection du client */
+		socket_client = accept(fd_serveur, NULL, NULL);
+		if (socket_client == -1) {
+			perror("Accept");
+			return -1;
+		}
+
+		(*stats).served_connections++;
+
+		/* Creer le processus de client */
+		int fils = fork();
+
+		/* Gere le comportement du client */
+		if (fils == 0)
+		{
+			child(socket_client, document_root);
 		}
 
 		/* Ferme la socket client sur le serveur */

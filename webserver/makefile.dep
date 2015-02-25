@@ -1,3 +1,4 @@
-main.o: main.c socket.h signaux.h pawnee.h
+main.o: main.c socket.h signaux.h pawnee.h stats.h
 signaux.o: signaux.c signaux.h
 socket.o: socket.c socket.h signaux.h
+stats.o: stats.c stats.h

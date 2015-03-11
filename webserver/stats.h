@@ -1,3 +1,5 @@
+#include <semaphore.h>
+
 typedef struct
 {
 	int served_connections ;
@@ -10,3 +12,4 @@ typedef struct
 
 int init_stats (void);
 web_stats * get_stats ( void );
+sem_t * get_sem(void) ;

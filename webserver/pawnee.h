@@ -1,5 +1,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <semaphore.h>
+
 
 enum http_method {
 	HTTP_GET,

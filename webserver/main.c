@@ -224,6 +224,8 @@ int child(int socket_client, char * document_root, web_stats * stats)
 			char buf[512];
 			int erreur = 0;
 
+			sem_t * sem = get_sem();
+
 			const char * mode = "w+";
 			FILE *f = fdopen(socket_client, mode);
 			if (f == NULL) 
@@ -239,7 +241,11 @@ int child(int socket_client, char * document_root, web_stats * stats)
 			http_request request;
 			if (parse_http_request(buf, &request) == -1) erreur = 400;
 
+
+			sem_wait(sem);
 			(*stats).served_requests++;
+			sem_post(sem);
+
 
 
 			// recupere les eventuelles erreures de requete
@@ -257,7 +263,9 @@ int child(int socket_client, char * document_root, web_stats * stats)
 			else if (erreur == 405)
 				send_response(f , 405 , "Method Not Allowed" , "Method Not Allowed \r\n");
 			else if (erreur == 400) {
+				sem_wait(sem);
 				(*stats).ko_400++;
+				sem_post(sem);
 				send_response(f , 400 , "Bad Request" , "Bad Request \r\n");
 			} else {
 				
@@ -273,11 +281,15 @@ int child(int socket_client, char * document_root, web_stats * stats)
 
 
 					if ((fd = check_and_open(url, document_root)) == -1) {
+						sem_wait(sem);
 						stats->ko_404++;
+						sem_post(sem);
 						printf("404 : %d \n", (*stats).ko_404);
 						send_response(f, 404, "Not found", "Not Found \r\n");
 					} else if (fd == -2) {
+						sem_wait(sem);
 						stats->ko_403++;
+						sem_post(sem);
 						send_response(f, 403, "Forbidden", "Forbidden \r\n");
 					}else {
 						// Si la requete est bonne on renvoie le contenu
@@ -285,7 +297,10 @@ int child(int socket_client, char * document_root, web_stats * stats)
 						int file = check_and_open(url, document_root);
 						char * contentType = getContentType(getExtension(url));
 						send_content(f, socket_client, 200, "OK", file, contentType);
+						sem_wait(sem);
 						stats->ok_200++;
+						sem_post(sem);
+
 					}
 				}
 
@@ -302,6 +317,10 @@ int main (int argc, char *argv[])
 
 	init_stats();
 	web_stats * stats = get_stats();
+
+	sem_t * sem = get_sem();
+
+	sem_init(sem, 1, 1);
 
 	if (argc == 2) {
 		document_root = argv[1];
@@ -321,7 +340,10 @@ int main (int argc, char *argv[])
 			return -1;
 		}
 
+		sem_wait(sem);
 		stats->served_connections++;
+		sem_post(sem);
+
 
 		/* Creer le processus de client */
 		int fils = fork();

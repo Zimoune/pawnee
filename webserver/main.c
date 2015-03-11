@@ -127,7 +127,7 @@ int parse_http_request (const char * request_line , http_request * request) {
 	
 	printf("Recu : %s \n", request_line);
 
-	if (sscanf(request_line, "%s %s HTTP/%d.%d", methode, url, &(*request).major_version, &(*request).minor_version) == EOF) 
+	if (sscanf(request_line, "%s %s HTTP/%d.%d", methode, url, &(*request).major_version, &(*request).minor_version) == 0) 
 	{
 		return -1;
 	}
@@ -218,12 +218,11 @@ void send_stats ( FILE * client ) {
 }
 
 // Gere le comportement du client
-int child(int socket_client, char * document_root) 
+int child(int socket_client, char * document_root, web_stats * stats) 
 {
 			int fd;
 			char buf[512];
 			int erreur = 0;
-			web_stats * stats = get_stats();
 
 			const char * mode = "w+";
 			FILE *f = fdopen(socket_client, mode);
@@ -274,10 +273,11 @@ int child(int socket_client, char * document_root)
 
 
 					if ((fd = check_and_open(url, document_root)) == -1) {
-						(*stats).ko_404++;
+						stats->ko_404++;
+						printf("404 : %d \n", (*stats).ko_404);
 						send_response(f, 404, "Not found", "Not Found \r\n");
 					} else if (fd == -2) {
-						(*stats).ko_403++;
+						stats->ko_403++;
 						send_response(f, 403, "Forbidden", "Forbidden \r\n");
 					}else {
 						// Si la requete est bonne on renvoie le contenu
@@ -285,7 +285,7 @@ int child(int socket_client, char * document_root)
 						int file = check_and_open(url, document_root);
 						char * contentType = getContentType(getExtension(url));
 						send_content(f, socket_client, 200, "OK", file, contentType);
-						(*stats).ok_200++;
+						stats->ok_200++;
 					}
 				}
 
@@ -321,7 +321,7 @@ int main (int argc, char *argv[])
 			return -1;
 		}
 
-		(*stats).served_connections++;
+		stats->served_connections++;
 
 		/* Creer le processus de client */
 		int fils = fork();
@@ -329,7 +329,7 @@ int main (int argc, char *argv[])
 		/* Gere le comportement du client */
 		if (fils == 0)
 		{
-			child(socket_client, document_root);
+			child(socket_client, document_root, stats);
 		}
 
 		/* Ferme la socket client sur le serveur */
